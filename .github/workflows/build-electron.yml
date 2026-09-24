@@ -100,11 +100,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Apple Code Signing (Optional)
-        if: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
         run: |
+          if [ -z "$APPLE_CERTIFICATE_BASE64" ]; then
+            echo "No Apple signing certificate configured, skipping."
+            exit 0
+          fi
+
           KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
           KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
 
