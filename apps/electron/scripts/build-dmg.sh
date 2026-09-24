@@ -124,10 +124,10 @@ chmod +x "$ELECTRON_DIR/vendor/bun/bun"
 # 3b. Download uv binary for darwin-${ARCH}
 echo "Downloading uv for darwin-${ARCH}..."
 bun -e '
-import { downloadUv } from "../../scripts/build/common";
+import { downloadUv } from "'"$ROOT_DIR"'/scripts/build/common";
 import { join } from "path";
-const rootDir = process.cwd();
-const electronDir = join(rootDir, "apps/electron");
+const rootDir = "'"$ROOT_DIR"'";
+const electronDir = "'"$ELECTRON_DIR"'";
 await downloadUv({
   platform: "darwin",
   arch: "'"$ARCH"'",
@@ -146,10 +146,10 @@ echo "Building WhatsApp worker..."
 # 3d. Build and stage MCP servers
 echo "Building and staging MCP servers..."
 (cd "$ROOT_DIR" && bun -e '
-import { buildMcpServers, copySessionServer, copyPiAgentServer } from "./scripts/build/common";
+import { buildMcpServers, copySessionServer, copyPiAgentServer } from "'"$ROOT_DIR"'/scripts/build/common";
 import { join } from "path";
-const rootDir = process.cwd();
-const electronDir = join(rootDir, "apps/electron");
+const rootDir = "'"$ROOT_DIR"'";
+const electronDir = "'"$ELECTRON_DIR"'";
 const config = {
   platform: "darwin",
   arch: "'"$ARCH"'",
@@ -191,7 +191,6 @@ if [ ! -d "$SDK_BIN_SOURCE" ]; then
     echo "Cross-arch build: ${SDK_BIN_PKG} not in node_modules — fetching from npm..."
     SDK_VERSION=$(node -p "require('$ROOT_DIR/package.json').dependencies['@anthropic-ai/claude-agent-sdk']" | tr -d '"')
     PKG_TMP=$(mktemp -d)
-    trap "rm -rf $PKG_TMP" RETURN
     (
         cd "$PKG_TMP"
         npm pack "@anthropic-ai/${SDK_BIN_PKG}@${SDK_VERSION}" >/dev/null
@@ -200,6 +199,7 @@ if [ ! -d "$SDK_BIN_SOURCE" ]; then
     )
     mkdir -p "$SDK_BIN_SOURCE"
     cp -r "$PKG_TMP/package/." "$SDK_BIN_SOURCE/"
+    rm -rf "$PKG_TMP"
 fi
 
 require_path "$SDK_BIN_SOURCE" "SDK native binary package (${SDK_BIN_PKG})" \
