@@ -121,6 +121,49 @@ unzip -o "$TEMP_DIR/${BUN_DOWNLOAD}.zip" -d "$TEMP_DIR"
 cp "$TEMP_DIR/${BUN_DOWNLOAD}/bun" "$ELECTRON_DIR/vendor/bun/"
 chmod +x "$ELECTRON_DIR/vendor/bun/bun"
 
+# 3b. Download uv binary for darwin-${ARCH}
+echo "Downloading uv for darwin-${ARCH}..."
+bun -e '
+import { downloadUv } from "../../scripts/build/common";
+import { join } from "path";
+const rootDir = process.cwd();
+const electronDir = join(rootDir, "apps/electron");
+await downloadUv({
+  platform: "darwin",
+  arch: "'"$ARCH"'",
+  upload: false,
+  uploadLatest: false,
+  uploadScript: false,
+  rootDir,
+  electronDir,
+});
+'
+
+# 3c. Build WhatsApp worker subprocess
+echo "Building WhatsApp worker..."
+(cd "$ROOT_DIR" && bun run build:wa-worker)
+
+# 3d. Build and stage MCP servers
+echo "Building and staging MCP servers..."
+(cd "$ROOT_DIR" && bun -e '
+import { buildMcpServers, copySessionServer, copyPiAgentServer } from "./scripts/build/common";
+import { join } from "path";
+const rootDir = process.cwd();
+const electronDir = join(rootDir, "apps/electron");
+const config = {
+  platform: "darwin",
+  arch: "'"$ARCH"'",
+  upload: false,
+  uploadLatest: false,
+  uploadScript: false,
+  rootDir,
+  electronDir,
+};
+buildMcpServers(config);
+copySessionServer(config);
+copyPiAgentServer(config);
+')
+
 # 4. Copy SDK from root node_modules (monorepo hoisting)
 # Note: The SDK is hoisted to root node_modules by the package manager.
 # We copy it here because electron-builder only sees apps/electron/.
@@ -215,17 +258,16 @@ echo "Packaging app with electron-builder..."
 cd "$ELECTRON_DIR"
 
 # Set up environment for electron-builder
-export CSC_IDENTITY_AUTO_DISCOVERY=true
-
-# Build electron-builder arguments
-BUILDER_ARGS="--mac --${ARCH}"
-
 # Add code signing if identity is available
 if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
     # Strip "Developer ID Application: " prefix if present (electron-builder adds it automatically)
     CSC_NAME_CLEAN="${APPLE_SIGNING_IDENTITY#Developer ID Application: }"
     echo "Using signing identity: $CSC_NAME_CLEAN"
     export CSC_NAME="$CSC_NAME_CLEAN"
+    export CSC_IDENTITY_AUTO_DISCOVERY=true
+else
+    # If no signing identity is specified, default auto-discovery to false (or honor env var)
+    export CSC_IDENTITY_AUTO_DISCOVERY="${CSC_IDENTITY_AUTO_DISCOVERY:-false}"
 fi
 
 # Add notarization if all credentials are available
@@ -242,6 +284,7 @@ if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PA
 fi
 
 # Run electron-builder
+BUILDER_ARGS="--mac --${ARCH}"
 npx electron-builder $BUILDER_ARGS
 
 # 8. Verify the DMG was built
